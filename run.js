@@ -4,6 +4,7 @@ const readline = require('readline')
 const fs = require('fs')
 
 const RLND_FILE = 'rlnd_list.json'
+const USER_FILE = 'user_config.json'
 const MESSAGE_CACHE_SIZE = 100
 const messageCache = new Set()
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
@@ -20,6 +21,15 @@ function saveRLNDs(rlnds) {
     fs.writeFileSync(RLND_FILE, JSON.stringify(rlnds, null, 2), 'utf-8')
 }
 
+function loadUser() {
+    return fs.existsSync(USER_FILE) ? JSON.parse(fs.readFileSync(USER_FILE, 'utf-8')) : null
+}
+
+function saveUser(name) {
+    const userData = { username: name }
+    fs.writeFileSync(USER_FILE, JSON.stringify(userData, null, 2), 'utf-8')
+}
+
 function broadcastRLNDList() {
     const message = JSON.stringify({ type: 'list_rlnd', rlnds: loadRLNDs(), id: crypto.randomUUID() })
     for (const connection of connections.values()) connection.write(message)
@@ -34,7 +44,13 @@ swarm.on('connection', (connection, info) => {
     connection.write(JSON.stringify({ type: 'list_rlnd', rlnds: loadRLNDs(), id: crypto.randomUUID() }))
     connection.on('data', (data) => handleMessage(data.toString()))
     connection.on('close', () => connections.delete(remoteId))
+    connection.on('error', (err) => handleConnectionError(err, remoteId))
 })
+
+function handleConnectionError(err, remoteId) {
+    console.error(`Erro de conexão com o peer ${remoteId}: ${err.message}`)
+    connections.delete(remoteId)
+}
 
 function handleMessage(data) {
     try {
@@ -44,7 +60,7 @@ function handleMessage(data) {
             messageCache.add(message.id)
             if (messageCache.size > MESSAGE_CACHE_SIZE) messageCache.delete(messageCache.values().next().value)
         }
-        
+
         if (message.type === 'list_rlnd') {
             const localRLNDs = loadRLNDs()
             let updated = false
@@ -56,24 +72,36 @@ function handleMessage(data) {
             })
             if (updated) saveRLNDs(localRLNDs)
         }
-        
+
         if (message.type === 'chat' && currentRLND && message.rlnd === currentRLND.rlnd) {
             console.log(`\n${message.username}: ${message.message}\n> `)
         }
-    } catch {}
+    } catch (error) {
+        console.error("Erro ao processar mensagem:", error.message)
+    }
 }
 
-rl.question('Digite seu nome: ', (name) => {
-    username = name.trim() || 'Usuário'
-    showMenu()
-})
+function getUsername() {
+    const user = loadUser()
+    if (user && user.username) {
+        username = user.username
+        showMenu()
+    } else {
+        rl.question('Digite seu nome: ', (name) => {
+            username = name.trim() || 'Usuário'
+            saveUser(username)
+            showMenu()
+        })
+    }
+}
 
 function showMenu() {
-    console.log('\n1. Criar RLND\n2. Listar RLNDs\n3. Conectar a RLND')
+    console.log('\n1. Criar RLND\n2. Listar RLNDs\n3. Conectar a RLND\n4. Sair')
     rl.question('Escolha uma opção: ', (option) => {
         if (option === '1') createRLND()
         else if (option === '2') listRLNDs()
         else if (option === '3') promptRLNDConnection()
+        else if (option === '4') exitRLND()
         else showMenu()
     })
 }
@@ -111,13 +139,27 @@ function connectToRLND(rlndName) {
 
 function chatLoop() {
     rl.question('> ', (message) => {
+        if (message === '/exit') return exitRLND()
         if (!currentRLND) return showMenu()
         const data = JSON.stringify({ type: 'chat', rlnd: currentRLND.rlnd, message, id: crypto.randomUUID(), ass: currentRLND.ass, data: new Date().toISOString(), username })
-        for (const connection of connections.values()) connection.write(data)
+        for (const connection of connections.values()) {
+            connection.write(data)
+        }
         chatLoop()
     })
+}
+
+function exitRLND() {
+    if (currentRLND) {
+        swarm.leave(crypto.createHash('sha256').update(currentRLND.id).digest())
+        console.log(`Você saiu da RLND: ${currentRLND.rlnd}`)
+        currentRLND = null
+    }
+    showMenu()
 }
 
 function signRLND(name) {
     return crypto.createHmac('sha256', crypto.randomBytes(32)).update(name).digest('hex')
 }
+
+getUsername()

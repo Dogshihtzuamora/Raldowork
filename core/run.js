@@ -3,15 +3,15 @@ const crypto = require('crypto')
 const readline = require('readline')
 const fs = require('fs')
 
-const RLND_FILE = 'rlnd_list.json'
-const USER_FILE = 'user_config.json'
-const MESSAGE_CACHE_SIZE = 100
-const messageCache = new Set()
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
-const swarm = new Hyperswarm()
-let currentRLND = null
-let connections = new Map()
-let username = ''
+const RLND_FILE = 'rlnd_list.json';
+const USER_FILE = 'user_config.json';
+const MESSAGE_CACHE_SIZE = 100;
+const messageCache = new Set();
+const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+const swarm = new Hyperswarm();
+let currentRLND = null;
+let connections = new Map();
+let username = '';
 
 function loadRLNDs() {
     return fs.existsSync(RLND_FILE) ? JSON.parse(fs.readFileSync(RLND_FILE, 'utf-8')) : []

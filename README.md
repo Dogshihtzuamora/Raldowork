@@ -31,7 +31,7 @@ cd Raldowork
 npm install
 
 4. inicie raldowork:
- node run.js
+ node core/run.js
 
 ## 🚀 Uso
 

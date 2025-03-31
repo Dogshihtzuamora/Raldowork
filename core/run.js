@@ -88,10 +88,15 @@ function getUsername() {
         showMenu()
     } else {
         rl.question('Digite seu nome: ', (name) => {
-            username = name.trim() || 'Usuário'
-            saveUser(username)
-            showMenu()
-        })
+    name = name.trim();
+    if (!name || name.length > 30) {
+        console.log("Nome inválido. Tente novamente.");
+        return getUsername(); // Pergunta novamente
+    }
+    username = name;
+    saveUser(username);
+    showMenu();
+});
     }
 }
 

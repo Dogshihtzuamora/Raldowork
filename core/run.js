@@ -197,8 +197,8 @@ deleteOldMessageFiles()
 }
 
 function showMenu() {
-    console.log('\n1. Criar RLND\n2. Listar RLNDs\n3. Conectar a RLND\n4. Ver histórico\n5. Sair')
-    rl.question('Escolha uma opção: ', (option) => {
+    console.log(chalk.yellow('\n1. Criar RLND\n2. Listar RLNDs\n3. Conectar a RLND\n4. Ver histórico\n5. Sair\n'))
+    rl.question('\nEscolha uma opção: ', (option) => {
         if (option === '1') createRLND()
         else if (option === '2') listRLNDs()
         else if (option === '3') promptRLNDConnection()
@@ -238,7 +238,7 @@ function createRLND() {
 function listRLNDs() {
     const rlnds = loadRLNDs()
     if (rlnds.length === 0) {
-        console.log(chalk.yellow("Nenhuma RLND disponível."))
+        console.log(chalk.red("Nenhuma RLND disponível."))
     } else {
         rlnds.forEach((r, i) => console.log(`${i + 1}. ${r.rlnd}`))
     }
@@ -252,7 +252,7 @@ function promptRLNDConnection() {
 function connectToRLND(rlndName) {
     const rlnd = loadRLNDs().find(r => r.rlnd === rlndName)
     if (!rlnd) {
-        console.log("RLND não encontrada.")
+        console.log(chalk.red("RLND não encontrada."))
         return showMenu()
     }
     

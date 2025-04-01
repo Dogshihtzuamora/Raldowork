@@ -1,8 +1,4 @@
-Aqui está um **README.md** atualizado, incluindo informações sobre o **cron job** (`cron.js`) e sua funcionalidade de limpeza automática de arquivos JSON antigos.  
-
----
-
-# **Raldowork**
+[![Typing SVG](https://readme-typing-svg.demolab.com?font=Bebas+Neue&size=35&duration=7000&pause=5000&color=1F479F&center=true&vCenter=true&width=435&lines=Raldowork)](https://git.io/typing-svg)
 
 Raldowork é um sistema descentralizado de chat baseado em RLNDs (Redes Locais de Nome Descentralizado), permitindo comunicação segura e privada entre usuários conectados. Aproveite a tecnologia de redes peer-to-peer e criptografia para trocar mensagens de forma eficiente e sem intermediários.
 

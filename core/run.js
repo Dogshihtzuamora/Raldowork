@@ -1,4 +1,3 @@
-// 配置文件
 const Hyperswarm = require('hyperswarm')
 const crypto = require('crypto')
 const readline = require('readline')
@@ -15,11 +14,75 @@ let currentRLND = null
 let connections = new Map()
 let username = ''
 
-const { loadRLNDs, saveRLNDs, loadUser, saveUser } = require('../config/config')
+function loadRLNDs() {
+    return fs.existsSync(RLND_FILE) ? JSON.parse(fs.readFileSync(RLND_FILE, 'utf-8')) : []
+}
+
+function saveRLNDs(rlnds) {
+    fs.writeFileSync(RLND_FILE, JSON.stringify(rlnds, null, 2), 'utf-8')
+}
+
+function loadUser() {
+    return fs.existsSync(USER_FILE) ? JSON.parse(fs.readFileSync(USER_FILE, 'utf-8')) : null
+}
+
+function saveUser(name) {
+    const userData = { username: name }
+    fs.writeFileSync(USER_FILE, JSON.stringify(userData, null, 2), 'utf-8')
+}
+
+function getMessagesFileName(rlndName) {
+    return `${rlndName.replace(/[^a-z0-9]/gi, '_')}_msg.json`
+}
+
+function loadMessages(rlndName) {
+    const fileName = getMessagesFileName(rlndName)
+    return fs.existsSync(fileName) ? JSON.parse(fs.readFileSync(fileName, 'utf-8')) : []
+}
+
+function saveMessage(rlndName, message) {
+    const fileName = getMessagesFileName(rlndName)
+    const messages = loadMessages(rlndName)
+    messages.push({
+        id: message.id,
+        user: message.username,
+        date: message.date,
+        msg: message.message
+    })
+    fs.writeFileSync(fileName, JSON.stringify(messages, null, 2), 'utf-8')
+}
 
 function broadcastRLNDList() {
     const message = JSON.stringify({ type: 'list_rlnd', rlnds: loadRLNDs(), id: crypto.randomUUID() })
     for (const connection of connections.values()) connection.write(message)
+}
+
+function broadcastMessages(rlndName) {
+    const messages = loadMessages(rlndName)
+    const messagePacket = JSON.stringify({ 
+        type: 'sync_messages', 
+        rlnd: rlndName, 
+        messages: messages,
+        id: crypto.randomUUID(),
+        sender: username
+    })
+    
+    for (const connection of connections.values()) {
+        connection.write(messagePacket)
+    }
+}
+
+function requestMessages(rlndName) {
+    const requestPacket = JSON.stringify({ 
+        type: 'request_messages', 
+        rlnd: rlndName,
+        id: crypto.randomUUID(),
+        sender: username
+    })
+    
+    for (const connection of connections.values()) {
+        connection.write(requestPacket)
+    }
 }
 
 swarm.join(crypto.createHash('sha256').update('Raldowork').digest(), { lookup: true, announce: true })
@@ -62,9 +125,45 @@ function handleMessage(data) {
 
         if (message.type === 'chat') {
             if ((currentRLND && message.rlnd === currentRLND.rlnd) || !currentRLND) {
-                // Removido código de salvar mensagens
+                saveMessage(message.rlnd, message)
+                
                 if (currentRLND && message.rlnd === currentRLND.rlnd) {
                     console.log(`\n${message.username}: ${message.message}\n> `)
+                }
+            }
+        }
+        
+        if (message.type === 'request_messages') {
+            const rlndName = message.rlnd
+            broadcastMessages(rlndName)
+        }
+        
+        if (message.type === 'sync_messages') {
+            const rlndName = message.rlnd
+            const remoteMessages = message.messages
+            const fileName = getMessagesFileName(rlndName)
+            
+            let localMessages = []
+            if (fs.existsSync(fileName)) {
+                localMessages = JSON.parse(fs.readFileSync(fileName, 'utf-8'))
+            }
+            
+            const idSet = new Set(localMessages.map(m => m.id))
+            let updated = false
+            
+            remoteMessages.forEach(msg => {
+                if (!idSet.has(msg.id)) {
+                    localMessages.push(msg)
+                    updated = true
+                }
+            })
+            
+            if (updated) {
+                localMessages.sort((a, b) => new Date(a.date) - new Date(b.date))
+                fs.writeFileSync(fileName, JSON.stringify(localMessages, null, 2), 'utf-8')
+                
+                if (currentRLND && currentRLND.rlnd === rlndName) {
+                    console.log("\nHistórico atualizado.\n> ")
                 }
             }
         }
@@ -74,21 +173,21 @@ function handleMessage(data) {
 }
 
 function getUsername() {
-    const user = loadUser(); // Obtém as configurações do usuário
+    const user = loadUser()
     if (user && user.username) {
-        username = user.username;
-        showMenu();
+        username = user.username
+        showMenu()
     } else {
         rl.question('Digite seu nome: ', (name) => {
-            name = name.trim();
+            name = name.trim()
             if (!name || name.length > 30) {
-                console.log("Nome inválido. Tente novamente.");
-                return getUsername();
+                console.log("Nome inválido. Tente novamente.")
+                return getUsername()
             }
-            username = name;
-            saveUser({ username }); // Salvando objeto do usuário
-            showMenu();
-        });
+            username = name
+            saveUser(username)
+            showMenu()
+        })
     }
 }
 
@@ -162,19 +261,22 @@ function connectToRLND(rlndName) {
     console.log(`\nConectado a RLND: ${rlndName}`)
     console.log("Digite suas mensagens (digite /exit para sair):\n")
     
-    // Mostrar histórico ao conectar
-    showRLNDHistory(rlndName)
-    
-    chatLoop()
+    requestMessages(rlndName)
+    setTimeout(() => {
+        showRLNDHistory(rlndName)
+        chatLoop()
+    }, 500)
 }
 
 function showRLNDHistory(rlndName) {
-    const messages = [] // Histórico de mensagens removido
+    const messages = loadMessages(rlndName)
     if (messages.length === 0) {
         console.log("Nenhuma mensagem anterior neste RLND.\n")
     } else {
         console.log("Histórico de mensagens:")
-        // Histórico de mensagens removido
+        messages.forEach(msg => {
+            console.log(`[${new Date(msg.date).toLocaleString()}] ${msg.user}: ${msg.msg}`)
+        })
         console.log("") 
     }
 }
@@ -182,12 +284,21 @@ function showRLNDHistory(rlndName) {
 function showHistory() {
     if (!currentRLND) {
         rl.question('Digite o nome do RLND para ver o histórico: ', (rlndName) => {
-            showRLNDHistory(rlndName.trim())
-            showMenu()
+            const rlndNameTrimmed = rlndName.trim();
+            requestMessages(rlndNameTrimmed);
+            
+            setTimeout(() => {
+                showRLNDHistory(rlndNameTrimmed);
+                showMenu();
+            }, 500);
         })
     } else {
-        showRLNDHistory(currentRLND.rlnd)
-        showMenu()
+        requestMessages(currentRLND.rlnd);
+        
+        setTimeout(() => {
+            showRLNDHistory(currentRLND.rlnd);
+            showMenu();
+        }, 500);
     }
 }
 
@@ -205,9 +316,9 @@ function chatLoop() {
             date: new Date().toISOString(),
             username
         }
-
-        // Removido código de salvar mensagem
-
+        
+        saveMessage(currentRLND.rlnd, chatMessage)
+        
         const data = JSON.stringify(chatMessage)
         for (const connection of connections.values()) {
             connection.write(data)

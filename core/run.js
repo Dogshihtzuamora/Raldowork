@@ -1,3 +1,4 @@
+// 配置文件
 const Hyperswarm = require('hyperswarm')
 const crypto = require('crypto')
 const readline = require('readline')
@@ -14,43 +15,7 @@ let currentRLND = null
 let connections = new Map()
 let username = ''
 
-function loadRLNDs() {
-    return fs.existsSync(RLND_FILE) ? JSON.parse(fs.readFileSync(RLND_FILE, 'utf-8')) : []
-}
-
-function saveRLNDs(rlnds) {
-    fs.writeFileSync(RLND_FILE, JSON.stringify(rlnds, null, 2), 'utf-8')
-}
-
-function loadUser() {
-    return fs.existsSync(USER_FILE) ? JSON.parse(fs.readFileSync(USER_FILE, 'utf-8')) : null
-}
-
-function saveUser(name) {
-    const userData = { username: name }
-    fs.writeFileSync(USER_FILE, JSON.stringify(userData, null, 2), 'utf-8')
-}
-
-function getMessagesFileName(rlndName) {
-    return `${rlndName.replace(/[^a-z0-9]/gi, '_')}_msg.json`
-}
-
-function loadMessages(rlndName) {
-    const fileName = getMessagesFileName(rlndName)
-    return fs.existsSync(fileName) ? JSON.parse(fs.readFileSync(fileName, 'utf-8')) : []
-}
-
-function saveMessage(rlndName, message) {
-    const fileName = getMessagesFileName(rlndName)
-    const messages = loadMessages(rlndName)
-    messages.push({
-        id: message.id,
-        user: message.username,
-        date: message.date,
-        msg: message.message
-    })
-    fs.writeFileSync(fileName, JSON.stringify(messages, null, 2), 'utf-8')
-}
+const { loadRLNDs, saveRLNDs, loadUser, saveUser } = require('../config/config')
 
 function broadcastRLNDList() {
     const message = JSON.stringify({ type: 'list_rlnd', rlnds: loadRLNDs(), id: crypto.randomUUID() })
@@ -96,10 +61,8 @@ function handleMessage(data) {
         }
 
         if (message.type === 'chat') {
-
             if ((currentRLND && message.rlnd === currentRLND.rlnd) || !currentRLND) {
-                saveMessage(message.rlnd, message)
-                
+                // Removido código de salvar mensagens
                 if (currentRLND && message.rlnd === currentRLND.rlnd) {
                     console.log(`\n${message.username}: ${message.message}\n> `)
                 }
@@ -111,21 +74,21 @@ function handleMessage(data) {
 }
 
 function getUsername() {
-    const user = loadUser()
+    const user = loadUser(); // Obtém as configurações do usuário
     if (user && user.username) {
-        username = user.username
-        showMenu()
+        username = user.username;
+        showMenu();
     } else {
         rl.question('Digite seu nome: ', (name) => {
-            name = name.trim()
+            name = name.trim();
             if (!name || name.length > 30) {
-                console.log("Nome inválido. Tente novamente.")
-                return getUsername()
+                console.log("Nome inválido. Tente novamente.");
+                return getUsername();
             }
-            username = name
-            saveUser(username)
-            showMenu()
-        })
+            username = name;
+            saveUser({ username }); // Salvando objeto do usuário
+            showMenu();
+        });
     }
 }
 
@@ -206,14 +169,12 @@ function connectToRLND(rlndName) {
 }
 
 function showRLNDHistory(rlndName) {
-    const messages = loadMessages(rlndName)
+    const messages = [] // Histórico de mensagens removido
     if (messages.length === 0) {
         console.log("Nenhuma mensagem anterior neste RLND.\n")
     } else {
         console.log("Histórico de mensagens:")
-        messages.forEach(msg => {
-            console.log(`[${new Date(msg.date).toLocaleString()}] ${msg.user}: ${msg.msg}`)
-        })
+        // Histórico de mensagens removido
         console.log("") 
     }
 }
@@ -244,9 +205,8 @@ function chatLoop() {
             date: new Date().toISOString(),
             username
         }
-        
-        saveMessage(currentRLND.rlnd, chatMessage)
-        
+
+        // Removido código de salvar mensagem
 
         const data = JSON.stringify(chatMessage)
         for (const connection of connections.values()) {

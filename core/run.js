@@ -1,4 +1,5 @@
 const Hyperswarm = require('hyperswarm')
+const chalk = require('chalk')
 const crypto = require('crypto')
 const readline = require('readline')
 const fs = require('fs')
@@ -99,7 +100,7 @@ swarm.on('connection', (connection, info) => {
 })
 
 function handleConnectionError(err, remoteId) {
-    console.error(`Erro de conexão com o peer ${remoteId}: ${err.message}`)
+    console.error(chalk.red(`Erro de conexão com o peer ${remoteId}: ${err.message}`))
     connections.delete(remoteId)
 }
 
@@ -129,7 +130,7 @@ function handleMessage(data) {
                 saveMessage(message.rlnd, message)
                 
                 if (currentRLND && message.rlnd === currentRLND.rlnd) {
-                    console.log(`\n${message.username}: ${message.message}\n> `)
+                    console.log(chalk.blue(`\n${message.username}:`), chalk.green(`${message.message}\n> `))
                 }
             }
         }
@@ -164,12 +165,12 @@ function handleMessage(data) {
                 fs.writeFileSync(fileName, JSON.stringify(localMessages, null, 2), 'utf-8')
                 
                 if (currentRLND && currentRLND.rlnd === rlndName) {
-                    console.log("\nHistórico atualizado.\n> ")
+                    console.log(chalk.green("\nHistórico atualizado.\n> "))
                 }
             }
         }
     } catch (error) {
-        console.error("Erro ao processar mensagem:", error.message)
+        console.error(chalk.red("Erro ao processar mensagem:"), error.message)
     }
 }
 
@@ -183,7 +184,7 @@ function getUsername() {
         rl.question('Digite seu nome: ', (name) => {
             name = name.trim()
             if (!name || name.length > 30) {
-                console.log("Nome inválido. Tente novamente.")
+                console.log(chalk.red("Nome inválido. Tente novamente."))
                 return getUsername()
 
 deleteOldMessageFiles()
@@ -211,13 +212,13 @@ function createRLND() {
     rl.question('Nome da RLND: ', (name) => {
         name = name.trim()
         if (!name) {
-            console.log("Nome inválido. Tente novamente.")
+            console.log(chalk.red("Nome inválido. Tente novamente."))
             return createRLND()
         }
         
         const rlnds = loadRLNDs()
         if (rlnds.some(r => r.rlnd === name)) {
-            console.log("RLND já existe. Escolha outro nome.")
+            console.log(chalk.red("RLND já existe. Escolha outro nome."))
             return createRLND()
         }
         
@@ -237,7 +238,7 @@ function createRLND() {
 function listRLNDs() {
     const rlnds = loadRLNDs()
     if (rlnds.length === 0) {
-        console.log("Nenhuma RLND disponível.")
+        console.log(chalk.yellow("Nenhuma RLND disponível."))
     } else {
         rlnds.forEach((r, i) => console.log(`${i + 1}. ${r.rlnd}`))
     }
@@ -262,7 +263,7 @@ function connectToRLND(rlndName) {
     currentRLND = rlnd
     swarm.join(crypto.createHash('sha256').update(rlnd.id).digest(), { lookup: true, announce: true })
     
-    console.log(`\nConectado a RLND: ${rlndName}`)
+    console.log(chalk.green(`\nConectado a RLND: ${rlndName}`))
     console.log("Digite suas mensagens (digite /exit para sair):\n")
     
     requestMessages(rlndName)
@@ -275,11 +276,11 @@ function connectToRLND(rlndName) {
 function showRLNDHistory(rlndName) {
     const messages = loadMessages(rlndName)
     if (messages.length === 0) {
-        console.log("Nenhuma mensagem anterior neste RLND.\n")
+        console.log(chalk.yellow("Nenhuma mensagem anterior neste RLND.\n"))
     } else {
-        console.log("Histórico de mensagens:")
+        console.log(chalk.blue("Histórico de mensagens:"))
         messages.forEach(msg => {
-            console.log(`[${new Date(msg.date).toLocaleString()}] ${msg.user}: ${msg.msg}`)
+            console.log(chalk.blue(`[${new Date(msg.date).toLocaleString()}]`), chalk.green(`${msg.user}:`), msg.msg)
         })
         console.log("") 
     }
@@ -335,7 +336,7 @@ function chatLoop() {
 function exitRLND() {
     if (currentRLND) {
         swarm.leave(crypto.createHash('sha256').update(currentRLND.id).digest())
-        console.log(`Você saiu da RLND: ${currentRLND.rlnd}`)
+        console.log(chalk.yellow(`Você saiu da RLND: ${currentRLND.rlnd}`))
         currentRLND = null
     }
     showMenu()

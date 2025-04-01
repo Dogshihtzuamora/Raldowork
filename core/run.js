@@ -2,16 +2,17 @@ const Hyperswarm = require('hyperswarm')
 const crypto = require('crypto')
 const readline = require('readline')
 const fs = require('fs')
+const path = require('path')
 
-const RLND_FILE = 'rlnd_list.json';
-const USER_FILE = 'user_config.json';
-const MESSAGE_CACHE_SIZE = 100;
-const messageCache = new Set();
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-const swarm = new Hyperswarm();
-let currentRLND = null;
-let connections = new Map();
-let username = '';
+const RLND_FILE = 'rlnd_list.json'
+const USER_FILE = 'user_config.json'
+const MESSAGE_CACHE_SIZE = 100
+const messageCache = new Set()
+const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+const swarm = new Hyperswarm()
+let currentRLND = null
+let connections = new Map()
+let username = ''
 
 function loadRLNDs() {
     return fs.existsSync(RLND_FILE) ? JSON.parse(fs.readFileSync(RLND_FILE, 'utf-8')) : []
@@ -28,6 +29,27 @@ function loadUser() {
 function saveUser(name) {
     const userData = { username: name }
     fs.writeFileSync(USER_FILE, JSON.stringify(userData, null, 2), 'utf-8')
+}
+
+function getMessagesFileName(rlndName) {
+    return `${rlndName.replace(/[^a-z0-9]/gi, '_')}_msg.json`
+}
+
+function loadMessages(rlndName) {
+    const fileName = getMessagesFileName(rlndName)
+    return fs.existsSync(fileName) ? JSON.parse(fs.readFileSync(fileName, 'utf-8')) : []
+}
+
+function saveMessage(rlndName, message) {
+    const fileName = getMessagesFileName(rlndName)
+    const messages = loadMessages(rlndName)
+    messages.push({
+        id: message.id,
+        user: message.username,
+        date: message.date,
+        msg: message.message
+    })
+    fs.writeFileSync(fileName, JSON.stringify(messages, null, 2), 'utf-8')
 }
 
 function broadcastRLNDList() {
@@ -73,8 +95,15 @@ function handleMessage(data) {
             if (updated) saveRLNDs(localRLNDs)
         }
 
-        if (message.type === 'chat' && currentRLND && message.rlnd === currentRLND.rlnd) {
-            console.log(`\n${message.username}: ${message.message}\n> `)
+        if (message.type === 'chat') {
+
+            if ((currentRLND && message.rlnd === currentRLND.rlnd) || !currentRLND) {
+                saveMessage(message.rlnd, message)
+                
+                if (currentRLND && message.rlnd === currentRLND.rlnd) {
+                    console.log(`\n${message.username}: ${message.message}\n> `)
+                }
+            }
         }
     } catch (error) {
         console.error("Erro ao processar mensagem:", error.message)
@@ -88,34 +117,50 @@ function getUsername() {
         showMenu()
     } else {
         rl.question('Digite seu nome: ', (name) => {
-    name = name.trim();
-    if (!name || name.length > 30) {
-        console.log("Nome inválido. Tente novamente.");
-        return getUsername(); // Pergunta novamente
-    }
-    username = name;
-    saveUser(username);
-    showMenu();
-});
+            name = name.trim()
+            if (!name || name.length > 30) {
+                console.log("Nome inválido. Tente novamente.")
+                return getUsername()
+            }
+            username = name
+            saveUser(username)
+            showMenu()
+        })
     }
 }
 
 function showMenu() {
-    console.log('\n1. Criar RLND\n2. Listar RLNDs\n3. Conectar a RLND\n4. Sair')
+    console.log('\n1. Criar RLND\n2. Listar RLNDs\n3. Conectar a RLND\n4. Ver histórico\n5. Sair')
     rl.question('Escolha uma opção: ', (option) => {
         if (option === '1') createRLND()
         else if (option === '2') listRLNDs()
         else if (option === '3') promptRLNDConnection()
-        else if (option === '4') exitRLND()
+        else if (option === '4') showHistory()
+        else if (option === '5') exitRLND()
         else showMenu()
     })
 }
 
 function createRLND() {
     rl.question('Nome da RLND: ', (name) => {
+        name = name.trim()
+        if (!name) {
+            console.log("Nome inválido. Tente novamente.")
+            return createRLND()
+        }
+        
         const rlnds = loadRLNDs()
-        if (rlnds.some(r => r.rlnd === name)) return showMenu()
-        const newRLND = { rlnd: name, id: crypto.randomBytes(16).toString('hex'), ass: signRLND(name), data: new Date().toISOString() }
+        if (rlnds.some(r => r.rlnd === name)) {
+            console.log("RLND já existe. Escolha outro nome.")
+            return createRLND()
+        }
+        
+        const newRLND = { 
+            rlnd: name, 
+            id: crypto.randomBytes(16).toString('hex'), 
+            ass: signRLND(name), 
+            data: new Date().toISOString() 
+        }
         rlnds.push(newRLND)
         saveRLNDs(rlnds)
         broadcastRLNDList()
@@ -124,7 +169,12 @@ function createRLND() {
 }
 
 function listRLNDs() {
-    loadRLNDs().forEach((r, i) => console.log(`${i + 1}. ${r.rlnd}`))
+    const rlnds = loadRLNDs()
+    if (rlnds.length === 0) {
+        console.log("Nenhuma RLND disponível.")
+    } else {
+        rlnds.forEach((r, i) => console.log(`${i + 1}. ${r.rlnd}`))
+    }
     showMenu()
 }
 
@@ -134,22 +184,75 @@ function promptRLNDConnection() {
 
 function connectToRLND(rlndName) {
     const rlnd = loadRLNDs().find(r => r.rlnd === rlndName)
-    if (!rlnd) return showMenu()
-    if (currentRLND) swarm.leave(crypto.createHash('sha256').update(currentRLND.id).digest())
+    if (!rlnd) {
+        console.log("RLND não encontrada.")
+        return showMenu()
+    }
+    
+    if (currentRLND) {
+        swarm.leave(crypto.createHash('sha256').update(currentRLND.id).digest())
+    }
+    
     currentRLND = rlnd
     swarm.join(crypto.createHash('sha256').update(rlnd.id).digest(), { lookup: true, announce: true })
-    console.log(`Conectado a RLND: ${rlndName}\nDigite suas mensagens:`)
+    
+    console.log(`\nConectado a RLND: ${rlndName}`)
+    console.log("Digite suas mensagens (digite /exit para sair):\n")
+    
+    // Mostrar histórico ao conectar
+    showRLNDHistory(rlndName)
+    
     chatLoop()
+}
+
+function showRLNDHistory(rlndName) {
+    const messages = loadMessages(rlndName)
+    if (messages.length === 0) {
+        console.log("Nenhuma mensagem anterior neste RLND.\n")
+    } else {
+        console.log("Histórico de mensagens:")
+        messages.forEach(msg => {
+            console.log(`[${new Date(msg.date).toLocaleString()}] ${msg.user}: ${msg.msg}`)
+        })
+        console.log("") 
+    }
+}
+
+function showHistory() {
+    if (!currentRLND) {
+        rl.question('Digite o nome do RLND para ver o histórico: ', (rlndName) => {
+            showRLNDHistory(rlndName.trim())
+            showMenu()
+        })
+    } else {
+        showRLNDHistory(currentRLND.rlnd)
+        showMenu()
+    }
 }
 
 function chatLoop() {
     rl.question('> ', (message) => {
         if (message === '/exit') return exitRLND()
         if (!currentRLND) return showMenu()
-        const data = JSON.stringify({ type: 'chat', rlnd: currentRLND.rlnd, message, id: crypto.randomUUID(), ass: currentRLND.ass, data: new Date().toISOString(), username })
+        
+        const chatMessage = {
+            type: 'chat',
+            rlnd: currentRLND.rlnd,
+            message,
+            id: crypto.randomUUID(),
+            ass: currentRLND.ass,
+            date: new Date().toISOString(),
+            username
+        }
+        
+        saveMessage(currentRLND.rlnd, chatMessage)
+        
+
+        const data = JSON.stringify(chatMessage)
         for (const connection of connections.values()) {
             connection.write(data)
         }
+        
         chatLoop()
     })
 }

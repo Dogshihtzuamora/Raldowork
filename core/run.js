@@ -2,6 +2,7 @@ const Hyperswarm = require('hyperswarm')
 const crypto = require('crypto')
 const readline = require('readline')
 const fs = require('fs')
+const { deleteOldMessageFiles } = require('./cron')
 const path = require('path')
 
 const RLND_FILE = 'rlnd_list.json'
@@ -173,6 +174,7 @@ function handleMessage(data) {
 }
 
 function getUsername() {
+    deleteOldMessageFiles();
     const user = loadUser()
     if (user && user.username) {
         username = user.username
@@ -183,6 +185,8 @@ function getUsername() {
             if (!name || name.length > 30) {
                 console.log("Nome inválido. Tente novamente.")
                 return getUsername()
+
+deleteOldMessageFiles()
             }
             username = name
             saveUser(username)
@@ -342,3 +346,5 @@ function signRLND(name) {
 }
 
 getUsername()
+
+deleteOldMessageFiles()

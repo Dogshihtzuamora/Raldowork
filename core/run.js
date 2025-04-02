@@ -337,7 +337,8 @@ function exitRLND() {
         console.log(colors.yellow(`Você saiu da RLND: ${currentRLND.rlnd}`))
         currentRLND = null
     }
-    showMenu()
+    console.log(colors.red("\nEncerrando..."))
+    process.exit(0); // fim de tudo
 }
 
 function signRLND(name) {

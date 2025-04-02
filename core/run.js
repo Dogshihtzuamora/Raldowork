@@ -1,5 +1,5 @@
 const Hyperswarm = require('hyperswarm')
-const chalk = require('chalk')
+import chalk from 'chalk';
 const crypto = require('crypto')
 const readline = require('readline')
 const fs = require('fs')

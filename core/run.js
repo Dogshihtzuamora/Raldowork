@@ -1,10 +1,10 @@
 const Hyperswarm = require('hyperswarm')
-const chalk = require('chalk');
 const crypto = require('crypto')
 const readline = require('readline')
 const fs = require('fs')
 const { deleteOldMessageFiles } = require('./cron')
 const path = require('path')
+const colors = require('colors/safe')
 
 const RLND_FILE = 'rlnd_list.json'
 const USER_FILE = 'user_config.json'
@@ -100,7 +100,7 @@ swarm.on('connection', (connection, info) => {
 })
 
 function handleConnectionError(err, remoteId) {
-    console.error(chalk.red(`Erro de conexão com o peer ${remoteId}: ${err.message}`))
+    console.error(colors.red(`Erro de conexão com o peer ${remoteId}: ${err.message}`))
     connections.delete(remoteId)
 }
 
@@ -130,7 +130,7 @@ function handleMessage(data) {
                 saveMessage(message.rlnd, message)
                 
                 if (currentRLND && message.rlnd === currentRLND.rlnd) {
-                    console.log(chalk.blue(`\n${message.username}:`), chalk.green(`${message.message}\n> `))
+                    console.log(colors.blue(`\n${message.username}:`), colors.green(`${message.message}\n> `))
                 }
             }
         }
@@ -165,12 +165,12 @@ function handleMessage(data) {
                 fs.writeFileSync(fileName, JSON.stringify(localMessages, null, 2), 'utf-8')
                 
                 if (currentRLND && currentRLND.rlnd === rlndName) {
-                    console.log(chalk.green("\nHistórico atualizado.\n> "))
+                    console.log(colors.green("\nHistórico atualizado.\n> "))
                 }
             }
         }
     } catch (error) {
-        console.error(chalk.red("Erro ao processar mensagem:"), error.message)
+        console.error(colors.red("Erro ao processar mensagem:"), error.message)
     }
 }
 
@@ -184,10 +184,8 @@ function getUsername() {
         rl.question('Digite seu nome: ', (name) => {
             name = name.trim()
             if (!name || name.length > 30) {
-                console.log(chalk.red("Nome inválido. Tente novamente."))
+                console.log(colors.red("Nome inválido. Tente novamente."))
                 return getUsername()
-
-deleteOldMessageFiles()
             }
             username = name
             saveUser(username)
@@ -197,7 +195,7 @@ deleteOldMessageFiles()
 }
 
 function showMenu() {
-    console.log(chalk.yellow('\n1. Criar RLND\n2. Listar RLNDs\n3. Conectar a RLND\n4. Ver histórico\n5. Sair\n'))
+    console.log(colors.yellow('\n1. Criar RLND\n2. Listar RLNDs\n3. Conectar a RLND\n4. Ver histórico\n5. Sair\n'))
     rl.question('\nEscolha uma opção: ', (option) => {
         if (option === '1') createRLND()
         else if (option === '2') listRLNDs()
@@ -212,13 +210,13 @@ function createRLND() {
     rl.question('Nome da RLND: ', (name) => {
         name = name.trim()
         if (!name) {
-            console.log(chalk.red("Nome inválido. Tente novamente."))
+            console.log(colors.red("Nome inválido. Tente novamente."))
             return createRLND()
         }
         
         const rlnds = loadRLNDs()
         if (rlnds.some(r => r.rlnd === name)) {
-            console.log(chalk.red("RLND já existe. Escolha outro nome."))
+            console.log(colors.red("RLND já existe. Escolha outro nome."))
             return createRLND()
         }
         
@@ -238,7 +236,7 @@ function createRLND() {
 function listRLNDs() {
     const rlnds = loadRLNDs()
     if (rlnds.length === 0) {
-        console.log(chalk.red("Nenhuma RLND disponível."))
+        console.log(colors.red("Nenhuma RLND disponível."))
     } else {
         rlnds.forEach((r, i) => console.log(`${i + 1}. ${r.rlnd}`))
     }
@@ -252,7 +250,7 @@ function promptRLNDConnection() {
 function connectToRLND(rlndName) {
     const rlnd = loadRLNDs().find(r => r.rlnd === rlndName)
     if (!rlnd) {
-        console.log(chalk.red("RLND não encontrada."))
+        console.log(colors.red("RLND não encontrada."))
         return showMenu()
     }
     
@@ -263,7 +261,7 @@ function connectToRLND(rlndName) {
     currentRLND = rlnd
     swarm.join(crypto.createHash('sha256').update(rlnd.id).digest(), { lookup: true, announce: true })
     
-    console.log(chalk.green(`\nConectado a RLND: ${rlndName}`))
+    console.log(colors.green(`\nConectado a RLND: ${rlndName}`))
     console.log("Digite suas mensagens (digite /exit para sair):\n")
     
     requestMessages(rlndName)
@@ -276,11 +274,11 @@ function connectToRLND(rlndName) {
 function showRLNDHistory(rlndName) {
     const messages = loadMessages(rlndName)
     if (messages.length === 0) {
-        console.log(chalk.yellow("Nenhuma mensagem anterior neste RLND.\n"))
+        console.log(colors.yellow("Nenhuma mensagem anterior neste RLND.\n"))
     } else {
-        console.log(chalk.blue("Histórico de mensagens:"))
+        console.log(colors.blue("Histórico de mensagens:"))
         messages.forEach(msg => {
-            console.log(chalk.blue(`[${new Date(msg.date).toLocaleString()}]`), chalk.green(`${msg.user}:`), msg.msg)
+            console.log(colors.blue(`[${new Date(msg.date).toLocaleString()}]`), colors.green(`${msg.user}:`), msg.msg)
         })
         console.log("") 
     }
@@ -336,7 +334,7 @@ function chatLoop() {
 function exitRLND() {
     if (currentRLND) {
         swarm.leave(crypto.createHash('sha256').update(currentRLND.id).digest())
-        console.log(chalk.yellow(`Você saiu da RLND: ${currentRLND.rlnd}`))
+        console.log(colors.yellow(`Você saiu da RLND: ${currentRLND.rlnd}`))
         currentRLND = null
     }
     showMenu()
@@ -347,5 +345,5 @@ function signRLND(name) {
 }
 
 getUsername()
-
 deleteOldMessageFiles()
+            

@@ -10,9 +10,8 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "chalk": "^5.4.1",
-    "chalk-cli": "^5.0.1",
     "hyperswarm": "^4.11.1",
-    "node-cron": "^3.0.3"
+    "node-cron": "^3.0.3",
+    "colors": "^1.4.0"
   }
 }

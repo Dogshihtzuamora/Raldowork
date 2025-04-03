@@ -201,7 +201,7 @@ function showMenu() {
         else if (option === '2') listRLNDs()
         else if (option === '3') promptRLNDConnection()
         else if (option === '4') showHistory()
-        else if (option === '5') exitRLND()
+        else if (option === '5') finish()
         else showMenu()
     })
 }
@@ -334,9 +334,13 @@ function chatLoop() {
 function exitRLND() {
     if (currentRLND) {
         swarm.leave(crypto.createHash('sha256').update(currentRLND.id).digest())
-        console.log(colors.yellow(`Você saiu da RLND: ${currentRLND.rlnd}`))
+        console.log(colors.red(`Você saiu da RLND: ${currentRLND.rlnd}`))
         currentRLND = null
     }
+    showMenu()
+}
+
+function finish() {
     console.log(colors.red("\nEncerrando..."))
     process.exit(0); // fim de tudo
 }

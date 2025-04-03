@@ -50,9 +50,8 @@ node core/run.js
 
 ## 🕒 **Cron Job: Limpeza Automática de Arquivos JSON**
 
-O **cron job (`core/cron.js`)** foi projetado para manter o sistema organizado, removendo arquivos antigos. Ele:
+O **cron job (`core/cron.js`)** foi projetado para manter o sistema organizado, removendo arquivos antigos. Esta tarefa garante a organização do sistema através da remoção de arquivos obsoletos, executando a cada 1 hora e realizando as seguintes ações:
 
-- Executa **a cada 1 hora**.
 - Verifica **arquivos JSON armazenados localmente**.
 - Remove **arquivos com mais de 36 horas** de idade para evitar acúmulo de dados desnecessários.
 

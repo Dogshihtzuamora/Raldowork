@@ -1,7 +1,7 @@
 {
   "name": "raldowork2",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "src/run.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -9,6 +9,14 @@
   "author": "Ravy NS",
   "license": "ISC",
   "description": "",
+  "type": "commonjs",
+  "exnPermissions": [
+    "full_network",
+    "crypto",
+    "filesystem",
+    "process",
+    "timers"
+  ],
   "dependencies": {
     "hyperswarm": "^4.11.1",
     "node-cron": "^3.0.3",

@@ -43,14 +43,14 @@ npm install
 
 3️⃣ **Execute o sistema de chat:**
 ```bash
-node core/run.js
+node src/run.js
 ```
 
 ---
 
 ## 🕒 **Cron Job: Limpeza Automática de Arquivos JSON**
 
-O **cron job (`core/cron.js`)** foi projetado para manter o sistema organizado, removendo arquivos antigos. Esta tarefa garante a organização do sistema através da remoção de arquivos obsoletos, executando a cada 1 hora e realizando as seguintes ações:
+O **cron job (`src/cron.js`)** foi projetado para manter o sistema organizado, removendo arquivos antigos. Esta tarefa garante a organização do sistema através da remoção de arquivos obsoletos, executando a cada 1 hora e realizando as seguintes ações:
 
 - Verifica **arquivos JSON armazenados localmente**.
 - Remove **arquivos com mais de 36 horas** de idade para evitar acúmulo de dados desnecessários.

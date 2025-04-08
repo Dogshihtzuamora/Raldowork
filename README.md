@@ -43,7 +43,7 @@ npm install
 
 3️⃣ **Execute o sistema de chat:**
 ```bash
-node src/run.js
+node main.js
 ```
 
 ---

@@ -355,7 +355,7 @@ function run() {
 }
 
 // Exporta a função run para que possa ser usada em outros arquivos
-module.exports = run;
+module.exports = {run};
 
 
             

@@ -1,3 +1,3 @@
-const run = require('./src/run.js');
+const {run} = require('./src/run.js');
 
 run();

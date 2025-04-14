@@ -2,45 +2,144 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Raldowork Fórum</title>
+  <title>Deep Web Fórum</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
-    #login, #register, #forum-list, #messages { margin-bottom: 20px; }
+    .hidden { display: none; }
+    #forum-list, #messages { margin-top: 20px; }
     .forum, .message { border: 1px solid #ccc; padding: 10px; margin: 5px 0; }
-    button { margin: 5px; }
   </style>
 </head>
 <body>
-  <div id="login">
-    <h2>Login</h2>
-    <input type="text" id="login-name" placeholder="Nome de usuário">
-    <input type="password" id="login-password" placeholder="Senha">
-    <button onclick="login()">Entrar</button>
-    <button onclick="showRegister()">Registrar</button>
+  <div id="login-section">
+    <h1>Deep Web Fórum</h1>
+    <p>Nome de usuário: <input type="text" id="username"></p>
+    <p>Senha: <input type="password" id="password"></p>
+    <button onclick="login()">Entrar/Criar Conta</button>
+  </div>
+  <div id="main-section" class="hidden">
+    <h2>Bem-vindo, <span id="user-id"></span></h2>
+    <button onclick="showCreateForum()">Criar Fórum</button>
+    <div id="create-forum" class="hidden">
+      <input type="text" id="forum-name" placeholder="Nome do fórum">
+      <button onclick="createForum()">Criar</button>
+    </div>
+    <h3>Fóruns</h3>
+    <div id="forum-list"></div>
+    <div id="messages" class="hidden">
+      <h3>Mensagens do Fórum: <span id="forum-title"></span></h3>
+      <div id="message-list"></div>
+      <input type="text" id="message-input" placeholder="Digite sua mensagem">
+      <button onclick="sendMessage()">Enviar</button>
+    </div>
   </div>
 
-  <div id="register" style="display: none;">
-    <h2>Registrar</h2>
-    <input type="text" id="register-name" placeholder="Nome de usuário">
-    <input type="password" id="register-password" placeholder="Senha">
-    <button onclick="register()">Criar Conta</button>
-    <button onclick="showLogin()">Voltar</button>
-  </div>
+  <script>
+    let userId = null;
+    let assinatura = null;
+    let currentForumId = null;
 
-  <div id="forum-list" style="display: none;">
-    <h2>Fóruns</h2>
-    <button onclick="createForum()">Criar Fórum</button>
-    <div id="forums"></div>
-  </div>
+    async function login() {
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      const response = await fetch('/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        userId = data.id;
+        assinatura = data.assinatura;
+        document.getElementById('user-id').textContent = userId;
+        document.getElementById('login-section').classList.add('hidden');
+        document.getElementById('main-section').classList.remove('hidden');
+        loadForums();
+        // Verificar se há fórum na URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const forumId = urlParams.get('f');
+        if (forumId) {
+          loadMessages(forumId);
+        }
+      } else {
+        alert('Erro ao fazer login');
+      }
+    }
 
-  <div id="messages" style="display: none;">
-    <h2>Mensagens</h2>
-    <div id="message-list"></div>
-    <input type="text" id="message-input" placeholder="Digite sua mensagem">
-    <button onclick="postMessage()">Enviar</button>
-    <button onclick="backToForums()">Voltar</button>
-  </div>
+    async function loadForums() {
+      const response = await fetch('/forums');
+      const forums = await response.json();
+      const forumList = document.getElementById('forum-list');
+      forumList.innerHTML = '';
+      forums.forEach(forum => {
+        const div = document.createElement('div');
+        div.className = 'forum';
+        div.innerHTML = `<strong>${forum.nome}</strong> (ID: ${forum.id}, Criado por: ${forum.ass})<br>Data: ${forum.data}`;
+        div.onclick = () => loadMessages(forum.id, forum.nome);
+        forumList.appendChild(div);
+      });
+    }
 
-  <script src="/Raldowork/main.js"></script>
+    function showCreateForum() {
+      document.getElementById('create-forum').classList.toggle('hidden');
+    }
+
+    async function createForum() {
+      const name = document.getElementById('forum-name').value;
+      if (!name) {
+        alert('Nome do fórum é obrigatório');
+        return;
+      }
+      const response = await fetch('/create-forum', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, userId, assinatura })
+      });
+      if (response.ok) {
+        document.getElementById('forum-name').value = '';
+        document.getElementById('create-forum').classList.add('hidden');
+        loadForums();
+      } else {
+        alert('Erro ao criar fórum');
+      }
+    }
+
+    async function loadMessages(forumId, forumName = '') {
+      currentForumId = forumId;
+      document.getElementById('forum-title').textContent = forumName || forumId;
+      document.getElementById('messages').classList.remove('hidden');
+      const response = await fetch(`/messages/${forumId}`);
+      const messages = await response.json();
+      const messageList = document.getElementById('message-list');
+      messageList.innerHTML = '';
+      messages.forEach(msg => {
+        const div = document.createElement('div');
+        div.className = 'message';
+        div.innerHTML = `<strong>${msg.userId} (${msg.assinatura})</strong>: ${msg.content}<br>Data: ${msg.data}`;
+        messageList.appendChild(div);
+      });
+      // Atualizar URL
+      history.pushState({}, '', `/?f=${forumId}`);
+    }
+
+    async function sendMessage() {
+      const content = document.getElementById('message-input').value;
+      if (!content) {
+        alert('Mensagem não pode ser vazia');
+        return;
+      }
+      const response = await fetch(`/messages/${currentForumId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, userId, assinatura })
+      });
+      if (response.ok) {
+        document.getElementById('message-input').value = '';
+        loadMessages(currentForumId);
+      } else {
+        alert('Erro ao enviar mensagem');
+      }
+    }
+  </script>
 </body>
 </html>

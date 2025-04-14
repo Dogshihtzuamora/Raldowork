@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Raldowork Fórum</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    #login, #register, #forum-list, #messages { margin-bottom: 20px; }
+    .forum, .message { border: 1px solid #ccc; padding: 10px; margin: 5px 0; }
+    button { margin: 5px; }
+  </style>
+</head>
+<body>
+  <div id="login">
+    <h2>Login</h2>
+    <input type="text" id="login-name" placeholder="Nome de usuário">
+    <input type="password" id="login-password" placeholder="Senha">
+    <button onclick="login()">Entrar</button>
+    <button onclick="showRegister()">Registrar</button>
+  </div>
+
+  <div id="register" style="display: none;">
+    <h2>Registrar</h2>
+    <input type="text" id="register-name" placeholder="Nome de usuário">
+    <input type="password" id="register-password" placeholder="Senha">
+    <button onclick="register()">Criar Conta</button>
+    <button onclick="showLogin()">Voltar</button>
+  </div>
+
+  <div id="forum-list" style="display: none;">
+    <h2>Fóruns</h2>
+    <button onclick="createForum()">Criar Fórum</button>
+    <div id="forums"></div>
+  </div>
+
+  <div id="messages" style="display: none;">
+    <h2>Mensagens</h2>
+    <div id="message-list"></div>
+    <input type="text" id="message-input" placeholder="Digite sua mensagem">
+    <button onclick="postMessage()">Enviar</button>
+    <button onclick="backToForums()">Voltar</button>
+  </div>
+
+  <script src="/Raldowork/main.js"></script>
+</body>
+</html>

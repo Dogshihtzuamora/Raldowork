@@ -9,7 +9,7 @@ const Raldowork = (() => {
   const connections = new Set();
 
   const topic = crypto.createHash('sha256')
-    .update('raldowork-topic')
+    .update('raldowork:rlnd:')
     .digest();
 
   const CONFIG_DIR = path.join(__dirname, 'Rlndm');

@@ -1,0 +1,167 @@
+const Hyperswarm = require('hyperswarm');
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+
+const Raldowork = (() => {
+  const swarm = new Hyperswarm();
+  const projects = new Map();
+  const connections = new Set();
+
+  const topic = crypto.createHash('sha256')
+    .update('raldowork-topic')
+    .digest();
+
+  const CONFIG_DIR = path.join(__dirname, 'Rlndm');
+  const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
+
+  swarm.join(topic, { lookup: true, announce: true });
+
+  function readStructure(basePath, prefix = '') {
+    let files = [];
+    try {
+      const entries = fs.readdirSync(path.join(basePath, prefix));
+      for (const entry of entries) {
+        const fullPath = path.join(basePath, prefix, entry);
+        const relPath = path.join(prefix, entry);
+        const stats = fs.statSync(fullPath);
+
+        if (stats.isDirectory()) {
+          files = files.concat(readStructure(basePath, relPath));
+        } else {
+          files.push(relPath);
+        }
+      }
+    } catch (e) {
+      console.error(`[Raldowork] Error reading structure of ${basePath}`, e);
+    }
+    return files;
+  }
+
+  function saveConfig() {
+    const data = Array.from(projects.entries()).map(([name, obj]) => ({
+      name,
+      path: obj.path
+    }));
+    if (!fs.existsSync(CONFIG_DIR)) fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(data, null, 2));
+  }
+
+  function loadConfig() {
+    if (!fs.existsSync(CONFIG_PATH)) return;
+    try {
+      const data = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+      for (const { name, path: projPath } of data) {
+        if (fs.existsSync(projPath)) {
+          const structure = readStructure(projPath);
+          projects.set(name, { path: projPath, structure });
+        }
+      }
+    } catch (e) {
+      console.error('[Raldowork] Error loading config:', e);
+    }
+  }
+
+  loadConfig();
+
+  swarm.on('connection', (socket) => {
+    connections.add(socket);
+
+    socket.on('data', (data) => {
+      try {
+        const msg = JSON.parse(data.toString());
+
+        if (msg.type === 'create' && msg.name && msg.path && Array.isArray(msg.structure)) {
+          projects.set(msg.name, { path: msg.path, structure: msg.structure });
+        }
+
+        if (msg.type === 'read' && msg.name && msg.file) {
+          const project = projects.get(msg.name);
+          if (project && project.path) {
+            const filePath = path.join(project.path, msg.file);
+            if (fs.existsSync(filePath)) {
+              const content = fs.readFileSync(filePath, 'utf8');
+              socket.write(JSON.stringify({
+                type: 'response',
+                name: msg.name,
+                file: msg.file,
+                content
+              }));
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[Raldowork] Error handling message:', e);
+      }
+    });
+
+    socket.on('close', () => connections.delete(socket));
+    socket.on('error', () => connections.delete(socket));
+
+    for (const [name, { path: projPath, structure }] of projects.entries()) {
+      socket.write(JSON.stringify({
+        type: 'create',
+        name,
+        path: projPath,
+        structure
+      }));
+    }
+  });
+
+  return {
+    create(name, folderPath) {
+      if (!fs.existsSync(folderPath)) {
+        console.error(`[Raldowork] Folder does not exist: ${folderPath}`);
+        return;
+      }
+
+      const structure = readStructure(folderPath);
+      projects.set(name, { path: folderPath, structure });
+      saveConfig();
+
+      const msg = JSON.stringify({ type: 'create', name, path: folderPath, structure });
+      for (const conn of connections) {
+        conn.write(msg);
+      }
+    },
+
+    list() {
+      return Array.from(projects.keys());
+    },
+
+    enter(name) {
+      const project = projects.get(name);
+      return project?.structure || null;
+    },
+
+    read(name, file, callback) {
+      const project = projects.get(name);
+      if (project && fs.existsSync(path.join(project.path, file))) {
+        const content = fs.readFileSync(path.join(project.path, file), 'utf8');
+        return callback(content);
+      }
+
+      let responded = false;
+
+      const msg = JSON.stringify({ type: 'read', name, file });
+      for (const conn of connections) {
+        conn.write(msg);
+        conn.once('data', (data) => {
+          try {
+            const res = JSON.parse(data.toString());
+            if (res.type === 'response' && res.name === name && res.file === file) {
+              responded = true;
+              callback(res.content);
+            }
+          } catch (e) {}
+        });
+      }
+
+      setTimeout(() => {
+        if (!responded) callback(null);
+      }, 2000);
+    }
+  };
+})();
+
+module.exports = Raldowork;

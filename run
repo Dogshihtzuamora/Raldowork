@@ -1,200 +1,102 @@
 const http = require('http');
-const fs = require('fs');
 const path = require('path');
 const Raldowork = require('./raldowork');
 
 const PORT = 3131;
 
-const renderHTML = () => {
+const CONTENT_TYPES = {
+  '.html': 'text/html',
+  '.css': 'text/css',
+  '.js': 'application/javascript',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.txt': 'text/plain',
+  '.md': 'text/markdown'
+};
+
+function getContentType(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  return CONTENT_TYPES[ext] || 'application/octet-stream';
+}
+
+function renderHTML() {
   const projects = Raldowork.list();
-
   const projectLinks = projects
-    .map(
-      (project) =>
-        `<li><a href="/project?name=${encodeURIComponent(
-          project
-        )}" style="color: blue; text-decoration: underline;">${project}</a></li>`
-    )
+    .map(project => `<li><a href="/${encodeURIComponent(project)}/">${project}</a></li>`)
     .join('');
 
   return `
     <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Raldowork Projects</title>
-    </head>
+    <html>
+    <head><title>Raldowork Projects</title></head>
     <body>
-      <h1>Raldowork Projects</h1>
-      <ul>
-        ${projectLinks}
-      </ul>
+      <h1>Projects</h1>
+      <ul>${projectLinks}</ul>
     </body>
     </html>
   `;
-};
+}
 
-const renderProject = (projectName, indexContent = null) => {
-  if (indexContent) {
-    const fixedContent = indexContent.replace(
-      /<([a-zA-Z]+)[^>]*\s([a-zA-Z]+)=["']([^"']+)["'][^>]*>/g,
-      (match, tagName, attrName, attrValue) => {
-        if (attrValue.startsWith('http')) return match;
-        return `<${tagName} ${attrName}="/project-file/${attrValue}?name=${encodeURIComponent(projectName)}">`;
-      }
-    );
-
-    return `
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>${projectName} - Index</title>
-      </head>
-      <body>
-        ${fixedContent}
-        <hr>
-        <a href="/" style="color: blue; text-decoration: underline;">Go back</a>
-      </body>
-      </html>
-    `;
-  }
-
-  const structure = Raldowork.enter(projectName);
-
-  if (!structure) {
-    return `
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>${projectName} - Not Found</title>
-      </head>
-      <body>
-        <h1>Project "${projectName}" not found.</h1>
-        <a href="/" style="color: blue; text-decoration: underline;">Go back</a>
-      </body>
-      </html>
-    `;
-  }
-
-  const fileLinks = structure
-    .map(
-      (file) =>
-        `<li><a href="/file?name=${encodeURIComponent(
-          projectName
-        )}&file=${encodeURIComponent(
-          file
-        )}" style="color: blue; text-decoration: underline;">${file}</a></li>`
-    )
+function renderDirectory(projectName, files) {
+  const fileList = files
+    .map(file => `<li><a href="/${encodeURIComponent(projectName)}/${encodeURIComponent(file)}">${file}</a></li>`)
     .join('');
 
   return `
     <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>${projectName}</title>
-    </head>
+    <html>
+    <head><title>${projectName}</title></head>
     <body>
-      <h1>Project: ${projectName}</h1>
-      <ul>
-        ${fileLinks}
-      </ul>
-      <a href="/" style="color: blue; text-decoration: underline;">Go back</a>
+      <h1>${projectName}</h1>
+      <ul>${fileList}</ul>
+      <a href="/">Back to projects</a>
     </body>
     </html>
   `;
-};
-
-const renderFile = (projectName, fileName, content) => {
-  return `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>${fileName}</title>
-    </head>
-    <body>
-      <h1>Project: ${projectName}</h1>
-      <h2>File: ${fileName}</h2>
-      <pre>${content || 'File not found or empty.'}</pre>
-      <a href="/project?name=${encodeURIComponent(
-        projectName
-      )}" style="color: blue; text-decoration: underline;">Go back</a>
-    </body>
-    </html>
-  `;
-};
+}
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
-  const pathname = url.pathname;
+  const pathParts = url.pathname.split('/').filter(Boolean);
 
-  if (pathname === '/') {
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(renderHTML());
-  } else if (pathname === '/project') {
-    const projectName = url.searchParams.get('name');
+  if (pathParts.length === 0) {
+    res.writeHead(200, {'Content-Type': 'text/html'});
+    return res.end(renderHTML());
+  }
+
+  const projectName = decodeURIComponent(pathParts[0]);
+  const filePath = pathParts.slice(1).join('/');
+
+  if (pathParts.length === 1) {
     const structure = Raldowork.enter(projectName);
-
+    
     if (structure && structure.includes('index.html')) {
       Raldowork.read(projectName, 'index.html', (content) => {
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(renderProject(projectName, content));
+        res.writeHead(200, {'Content-Type': 'text/html'});
+        res.end(content);
       });
     } else {
-      res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end(renderProject(projectName));
+      res.writeHead(200, {'Content-Type': 'text/html'});
+      res.end(renderDirectory(projectName, structure || []));
     }
-  } else if (pathname === '/file') {
-    const projectName = url.searchParams.get('name');
-    const fileName = url.searchParams.get('file');
-
-    Raldowork.read(projectName, fileName, (content) => {
-      res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end(renderFile(projectName, fileName, content));
-    });
-  } else if (pathname.startsWith('/project-file/')) {
-    const filePath = pathname.replace('/project-file/', '');
-    const projectName = url.searchParams.get('name');
-
-    Raldowork.read(projectName, filePath, (content) => {
-      if (content) {
-        let contentType = 'text/plain';
-        if (filePath.endsWith('.js')) contentType = 'application/javascript';
-        else if (filePath.endsWith('.css')) contentType = 'text/css';
-        else if (filePath.endsWith('.html')) contentType = 'text/html';
-
-        res.writeHead(200, { 'Content-Type': contentType });
-        res.end(content);
-      } else {
-        res.writeHead(404, { 'Content-Type': 'text/plain' });
-        res.end('Arquivo não encontrado');
-      }
-    });
-  } else {
-    res.writeHead(404, { 'Content-Type': 'text/html' });
-    res.end(`
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Not Found</title>
-      </head>
-      <body>
-        <h1>404 - Not Found</h1>
-        <a href="/" style="color: blue; text-decoration: underline;">Go back</a>
-      </body>
-      </html>
-    `);
+    return;
   }
+
+  Raldowork.read(projectName, filePath, (content) => {
+    if (content === null) {
+      res.writeHead(404, {'Content-Type': 'text/html'});
+      return res.end(`<h1>404 Not Found</h1><p>${filePath} not found in ${projectName}</p>`);
+    }
+
+    const contentType = getContentType(filePath);
+    res.writeHead(200, {'Content-Type': contentType});
+    res.end(content);
+  });
 });
 
 server.listen(PORT, () => {

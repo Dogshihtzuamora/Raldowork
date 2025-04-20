@@ -20,5 +20,5 @@ node run
 ```
 4️⃣ **envair uma rlnd para rede:**
 ```bash
-node tosend
+node Tosend
 ```

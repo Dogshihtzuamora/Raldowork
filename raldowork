@@ -40,8 +40,10 @@ const Raldowork = (() => {
 
   function saveConfig() {
     const data = Array.from(projects.entries()).map(([name, obj]) => ({
-      name,
-      path: obj.path
+      name: obj.displayName || name,
+      rlcd: name,
+      path: obj.path,
+      note: obj.note || ''
     }));
     if (!fs.existsSync(CONFIG_DIR)) fs.mkdirSync(CONFIG_DIR, { recursive: true });
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(data, null, 2));
@@ -51,15 +53,24 @@ const Raldowork = (() => {
     if (!fs.existsSync(CONFIG_PATH)) return;
     try {
       const data = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
-      for (const { name, path: projPath } of data) {
+      for (const { name, rlcd, path: projPath, note } of data) {
         if (fs.existsSync(projPath)) {
           const structure = readStructure(projPath);
-          projects.set(name, { path: projPath, structure });
+          projects.set(rlcd, { 
+            path: projPath, 
+            structure,
+            displayName: name,
+            note: note || ''
+          });
         }
       }
     } catch (e) {
       console.error('[Raldowork] Error loading config:', e);
     }
+  }
+
+  function validateDomain(domain) {
+    return /^[a-z0-9._-]+$/.test(domain);
   }
 
   loadConfig();
@@ -71,19 +82,24 @@ const Raldowork = (() => {
       try {
         const msg = JSON.parse(data.toString());
 
-        if (msg.type === 'create' && msg.name && msg.path && Array.isArray(msg.structure)) {
-          projects.set(msg.name, { path: msg.path, structure: msg.structure });
+        if (msg.type === 'create' && msg.rlcd && msg.path && Array.isArray(msg.structure)) {
+          projects.set(msg.rlcd, { 
+            path: msg.path, 
+            structure: msg.structure,
+            displayName: msg.name || msg.rlcd,
+            note: msg.note || ''
+          });
         }
 
-        if (msg.type === 'read' && msg.name && msg.file) {
-          const project = projects.get(msg.name);
+        if (msg.type === 'read' && msg.rlcd && msg.file) {
+          const project = projects.get(msg.rlcd);
           if (project && project.path) {
             const filePath = path.join(project.path, msg.file);
             if (fs.existsSync(filePath)) {
               const content = fs.readFileSync(filePath, 'utf8');
               socket.write(JSON.stringify({
                 type: 'response',
-                name: msg.name,
+                rlcd: msg.rlcd,
                 file: msg.file,
                 content
               }));
@@ -98,44 +114,79 @@ const Raldowork = (() => {
     socket.on('close', () => connections.delete(socket));
     socket.on('error', () => connections.delete(socket));
 
-    for (const [name, { path: projPath, structure }] of projects.entries()) {
+    for (const [rlcd, { path: projPath, structure, displayName, note }] of projects.entries()) {
       socket.write(JSON.stringify({
         type: 'create',
-        name,
+        name: displayName,
+        rlcd,
         path: projPath,
-        structure
+        structure,
+        note: note || ''
       }));
     }
   });
 
   return {
-    create(name, folderPath) {
+    create(displayName, domain, folderPath, note = '') {
+      if (!validateDomain(domain)) {
+        console.error(`[Raldowork] Domínio inválido: ${domain}. Use apenas letras minúsculas, números, pontos, underlines e hífens.`);
+        return false;
+      }
+
+      if (projects.has(domain)) {
+        console.error(`[Raldowork] Já existe um projeto com o domínio: ${domain}`);
+        return false;
+      }
+
       if (!fs.existsSync(folderPath)) {
-        console.error(`[Raldowork] Folder does not exist: ${folderPath}`);
-        return;
+        console.error(`[Raldowork] Pasta não existe: ${folderPath}`);
+        return false;
       }
 
       const structure = readStructure(folderPath);
-      projects.set(name, { path: folderPath, structure });
+      projects.set(domain, { 
+        path: folderPath, 
+        structure,
+        displayName: displayName || domain,
+        note
+      });
       saveConfig();
 
-      const msg = JSON.stringify({ type: 'create', name, path: folderPath, structure });
+      const msg = JSON.stringify({ 
+        type: 'create', 
+        name: displayName,
+        rlcd: domain,
+        path: folderPath, 
+        structure,
+        note
+      });
+      
       for (const conn of connections) {
         conn.write(msg);
       }
+
+      return true;
     },
 
     list() {
-      return Array.from(projects.keys());
+      return Array.from(projects.entries()).map(([rlcd, { displayName, note }]) => ({
+        name: displayName,
+        rlcd,
+        note: note || ''
+      }));
     },
 
-    enter(name) {
-      const project = projects.get(name);
-      return project?.structure || null;
+    enter(rlcd) {
+      const project = projects.get(rlcd);
+      return project ? {
+        name: project.displayName,
+        structure: project.structure,
+        note: project.note || ''
+      } : null;
     },
 
-    read(name, file, callback) {
-      const project = projects.get(name);
+    read(rlcd, file, callback) {
+      const project = projects.get(rlcd);
       if (project && fs.existsSync(path.join(project.path, file))) {
         const content = fs.readFileSync(path.join(project.path, file), 'utf8');
         return callback(content);
@@ -143,13 +194,13 @@ const Raldowork = (() => {
 
       let responded = false;
 
-      const msg = JSON.stringify({ type: 'read', name, file });
+      const msg = JSON.stringify({ type: 'read', rlcd, file });
       for (const conn of connections) {
         conn.write(msg);
         conn.once('data', (data) => {
           try {
             const res = JSON.parse(data.toString());
-            if (res.type === 'response' && res.name === name && res.file === file) {
+            if (res.type === 'response' && res.rlcd === rlcd && res.file === file) {
               responded = true;
               callback(res.content);
             }
@@ -160,8 +211,13 @@ const Raldowork = (() => {
       setTimeout(() => {
         if (!responded) callback(null);
       }, 2000);
+    },
+
+    isValidDomain(domain) {
+      return validateDomain(domain);
     }
   };
 })();
 
 module.exports = Raldowork;
+

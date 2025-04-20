@@ -27,34 +27,64 @@ function getContentType(filePath) {
 function renderHTML() {
   const projects = Raldowork.list();
   const projectLinks = projects
-    .map(project => `<li><a href="/${encodeURIComponent(project)}/">${project}</a></li>`)
+    .map(project => `
+      <li>
+        <a href="/${encodeURIComponent(project.rlcd)}/">
+          <strong>${project.name}</strong>
+          <small>${project.rlcd}</small>
+        </a>
+      </li>
+    `)
     .join('');
 
   return `
     <!DOCTYPE html>
     <html>
-    <head><title>Raldowork Projects</title></head>
+    <head>
+      <title>Raldowork browser</title>
+      <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { color: #333; }
+        ul { list-style: none; padding: 0; }
+        li { margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 4px; }
+        li a { text-decoration: none; color: #333; display: block; }
+        li strong { display: block; font-size: 1.2em; }
+        li small { display: block; color: #666; font-size: 0.9em; }
+      </style>
+    </head>
     <body>
-      <h1>Projects</h1>
+      <h1>Rlnd</h1>
       <ul>${projectLinks}</ul>
     </body>
     </html>
   `;
 }
 
-function renderDirectory(projectName, files) {
+function renderDirectory(projectInfo, files) {
   const fileList = files
-    .map(file => `<li><a href="/${encodeURIComponent(projectName)}/${encodeURIComponent(file)}">${file}</a></li>`)
+    .map(file => `<li><a href="/${encodeURIComponent(projectInfo.rlcd)}/${encodeURIComponent(file)}">${file}</a></li>`)
     .join('');
 
   return `
     <!DOCTYPE html>
     <html>
-    <head><title>${projectName}</title></head>
+    <head>
+      <title>${projectInfo.name}</title>
+      <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { color: #333; }
+        .domain { color: #666; font-size: 0.9em; margin-bottom: 20px; }
+        ul { list-style: none; padding: 0; }
+        li { margin: 5px 0; padding: 8px; background: #f5f5f5; border-radius: 4px; }
+        li a { text-decoration: none; color: #333; }
+        .back-link { display: inline-block; margin-top: 20px; padding: 8px 15px; background: #eee; border-radius: 4px; text-decoration: none; color: #333; }
+      </style>
+    </head>
     <body>
-      <h1>${projectName}</h1>
+      <h1>${projectInfo.name}</h1>
+      <div class="domain">Domínio: ${projectInfo.rlcd}</div>
       <ul>${fileList}</ul>
-      <a href="/">Back to projects</a>
+      <a href="/" class="back-link">Back to rlnds</a>
     </body>
     </html>
   `;
@@ -69,28 +99,40 @@ const server = http.createServer((req, res) => {
     return res.end(renderHTML());
   }
 
-  const projectName = decodeURIComponent(pathParts[0]);
+  const projectDomain = decodeURIComponent(pathParts[0]);
   const filePath = pathParts.slice(1).join('/');
 
   if (pathParts.length === 1) {
-    const structure = Raldowork.enter(projectName);
-    
-    if (structure && structure.includes('index.html')) {
-      Raldowork.read(projectName, 'index.html', (content) => {
+    const projectInfo = Raldowork.enter(projectDomain);
+
+    if (!projectInfo) {
+      res.writeHead(404, {'Content-Type': 'text/html'});
+      return res.end(`<h1>404 Not Found</h1><p>Project ${projectDomain} not found</p>`);
+    }
+
+    if (projectInfo.structure.includes('index.html')) {
+      Raldowork.read(projectDomain, 'index.html', (content) => {
         res.writeHead(200, {'Content-Type': 'text/html'});
         res.end(content);
       });
     } else {
       res.writeHead(200, {'Content-Type': 'text/html'});
-      res.end(renderDirectory(projectName, structure || []));
+      res.end(renderDirectory({
+        name: projectInfo.name,
+        rlcd: projectDomain
+      }, projectInfo.structure || []));
     }
     return;
   }
 
-  Raldowork.read(projectName, filePath, (content) => {
+  Raldowork.read(projectDomain, filePath, (content) => {
     if (content === null) {
       res.writeHead(404, {'Content-Type': 'text/html'});
-      return res.end(`<h1>404 Not Found</h1><p>${filePath} not found in ${projectName}</p>`);
+      return res.end(`
+        <h1>404 Not Found</h1>
+        <p>${filePath} not found in ${projectDomain}</p>
+        <a href="/${encodeURIComponent(projectDomain)}/">Back to project</a>
+      `);
     }
 
     const contentType = getContentType(filePath);

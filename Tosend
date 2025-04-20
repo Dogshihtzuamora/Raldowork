@@ -1,0 +1,155 @@
+const readline = require('readline');
+const Raldowork = require('./raldowork');
+const path = require('path');
+const fs = require('fs');
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout
+});
+
+function askQuestion(question) {
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      resolve(answer.trim());
+    });
+  });
+}
+
+async function createRlnd() {
+  console.log('\n=== Criar Rlnd ===\n');
+
+  const name = await askQuestion('Nome: ');
+  if (!name) {
+    console.log('Nome é obrigatório!');
+    return;
+  }
+
+  let domain;
+  while (true) {
+    domain = await askQuestion('Domínio (somente letras minúsculas, números, ., _, -): ');
+
+    if (!domain) {
+      console.log('Domínio é obrigatório!');
+      continue;
+    }
+
+    if (!Raldowork.isValidDomain(domain)) {
+      console.log('Domínio inválido! Use apenas letras minúsculas, números, pontos, underlines e hífens.');
+      continue;
+    }
+
+    if (Raldowork.list().some(proj => proj.rlcd === domain)) {
+      console.log('Este domínio já está em uso!');
+      continue;
+    }
+
+    break;
+  }
+
+  let location;
+  while (true) {
+    location = await askQuestion('Local (caminho da pasta): ');
+
+    if (!location) {
+      console.log('Local é obrigatório!');
+      continue;
+    }
+
+    if (location.startsWith('~')) {
+      location = path.join(require('os').homedir(), location.slice(1));
+    }
+
+    try {
+      const absolutePath = path.resolve(location);
+      if (!fs.existsSync(absolutePath)) {
+        console.log('A pasta não existe!');
+        continue;
+      }
+      location = absolutePath;
+      break;
+    } catch (e) {
+      console.log('Caminho inválido!');
+    }
+  }
+
+  const note = await askQuestion('Nota (opcional): ');
+
+  console.log('\n=== Resumo ===');
+  console.log(`Nome: ${name}`);
+  console.log(`Domínio: ${domain}`);
+  console.log(`Local: ${location}`);
+  console.log(`Nota: ${note || '(nenhuma)'}`);
+  console.log('');
+
+  const confirm = await askQuestion('Confirmar criação? (s/n): ');
+  if (confirm.toLowerCase() !== 's') {
+    console.log('Criação cancelada!');
+    return;
+  }
+
+  const success = Raldowork.create(name, domain, location, note);
+  if (success) {
+    console.log('\nProjeto criado com sucesso!');
+  } else {
+    console.log('\nErro ao criar o projeto!');
+  }
+}
+
+function listRlnds() {
+  const projects = Raldowork.list();
+
+  if (projects.length === 0) {
+    console.log('\nNenhum projeto encontrado!');
+    return;
+  }
+
+  console.log('\n=== Projetos Disponíveis ===\n');
+
+
+  const maxNameLength = Math.max(4, ...projects.map(p => p.name ? p.name.length : 0));
+  const maxDomainLength = Math.max(6, ...projects.map(p => p.rlcd ? p.rlcd.length : 0));
+
+  console.log(
+    'Nome'.padEnd(maxNameLength + 2) +
+    'Domínio'.padEnd(maxDomainLength + 2) +
+    'Nota'
+  );
+  console.log('-'.repeat(maxNameLength + maxDomainLength + 20));
+
+
+  projects.forEach(project => {
+    console.log(
+      (project.name || '').padEnd(maxNameLength + 2) +
+      (project.rlcd || '').padEnd(maxDomainLength + 2) +
+      (project.note || '(nenhuma)')
+    );
+  });
+}
+
+async function main() {
+  while (true) {
+    console.log('\n=== Raldowork ===');
+    console.log('1. Criar Rlnd');
+    console.log('2. Listar Rlnds');
+    console.log('3. Sair');
+
+    const option = await askQuestion('\nEscolha uma opção: ');
+
+    switch (option) {
+      case '1':
+        await createRlnd();
+        break;
+      case '2':
+        listRlnds();
+        break;
+      case '3':
+        console.log('Saindo...');
+        process.exit(0);
+      default:
+        console.log('Opção inválida!');
+    }
+  }
+}
+
+main().catch(console.error);

@@ -14,7 +14,11 @@ cd Raldowork
 npm install
 ```
 
-3️⃣ **Execute o sistema de chat:**
+3️⃣ **Execute o sistema da rede:**
 ```bash
 node run
+```
+4️⃣ **envair uma rlnd para rede:**
+```bash
+node tosend
 ```

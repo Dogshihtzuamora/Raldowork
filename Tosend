@@ -49,10 +49,10 @@ async function createRlnd() {
 
   let location;
   while (true) {
-    location = await askQuestion('Local (caminho da pasta): ');
+    location = await askQuestion('Local do Diretório (caminho da pasta, Ex.: "C:/seu/diretorio"): ');
 
     if (!location) {
-      console.log('Local é obrigatório!');
+      console.log('Local é obrigatório para que o diretorio possa ser compartilhado no servidor!');
       continue;
     }
 

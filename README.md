@@ -14,11 +14,12 @@ cd Raldowork
 npm install
 ```
 
-3️⃣ **Execute o sistema da rede:**
+## ⚙️ **Uso**
+**Iniciar o servidor:**
 ```bash
 node run
 ```
-4️⃣ **envair uma rlnd para rede:**
+**Criar uma RLND no servidor:**
 ```bash
 node Tosend
 ```

@@ -1,5 +1,6 @@
 const http = require('http');
 const path = require('path');
+const os = require('os');
 const fs = require('fs');
 const Raldowork = require('./raldowork');
 
@@ -23,6 +24,18 @@ const CONTENT_TYPES = {
 function getContentType(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   return CONTENT_TYPES[ext] || 'application/octet-stream';
+}
+
+function getLocalIP() {
+  const nets = os.networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name]) {
+      if (net.family === 'IPv4' && !net.internal) {
+        return net.address;
+      }
+    }
+  }
+  return 'localhost';
 }
 
 function renderHTML() {
@@ -79,7 +92,6 @@ const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const pathParts = url.pathname.split('/').filter(Boolean);
 
-  // servindo o arquivo pattern.css
   if (url.pathname === '/pattern.css') {
     const cssPath = path.join(__dirname, 'pattern.css');
     fs.readFile(cssPath, (err, data) => {
@@ -93,9 +105,8 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // pagina inicial
   if (pathParts.length === 0) {
-    res.writeHead(200, {'Content-Type': 'text/html'});
+    res.writeHead(200, { 'Content-Type': 'text/html' });
     return res.end(renderHTML());
   }
 
@@ -106,17 +117,17 @@ const server = http.createServer((req, res) => {
     const projectInfo = Raldowork.enter(projectDomain);
 
     if (!projectInfo) {
-      res.writeHead(404, {'Content-Type': 'text/html'});
+      res.writeHead(404, { 'Content-Type': 'text/html' });
       return res.end(`<h1>404 Not Found</h1><p>Project ${projectDomain} not found</p>`);
     }
 
     if (projectInfo.structure.includes('index.html')) {
       Raldowork.read(projectDomain, 'index.html', (content) => {
-        res.writeHead(200, {'Content-Type': 'text/html'});
+        res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(content);
       });
     } else {
-      res.writeHead(200, {'Content-Type': 'text/html'});
+      res.writeHead(200, { 'Content-Type': 'text/html' });
       res.end(renderDirectory({
         name: projectInfo.name,
         rlcd: projectDomain
@@ -127,7 +138,7 @@ const server = http.createServer((req, res) => {
 
   Raldowork.read(projectDomain, filePath, (content) => {
     if (content === null) {
-      res.writeHead(404, {'Content-Type': 'text/html'});
+      res.writeHead(404, { 'Content-Type': 'text/html' });
       return res.end(`
         <h1>404 Not Found</h1>
         <p>${filePath} not found in ${projectDomain}</p>
@@ -136,11 +147,14 @@ const server = http.createServer((req, res) => {
     }
 
     const contentType = getContentType(filePath);
-    res.writeHead(200, {'Content-Type': contentType});
+    res.writeHead(200, { 'Content-Type': contentType });
     res.end(content);
   });
 });
 
+const localIP = getLocalIP();
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on http://localhost:${PORT} or IPv4`);
+  console.log(`\nServer running at:
+  - http://localhost:${PORT}
+  - http://${localIP}:${PORT} (acessível via celular na mesma rede)\n`);
 });

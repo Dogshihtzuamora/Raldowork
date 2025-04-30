@@ -27,7 +27,7 @@ async function createRlnd() {
 
   let domain;
   while (true) {
-    domain = await askQuestion('Domínio (somente letras minúsculas, números, ., _, -): ');
+    domain = await askQuestion('Defina um Domínio (somente letras minúsculas, números, ., _, -, Ex.: seu_diminio.aqui): ');
 
     if (!domain) {
       console.log('Domínio é obrigatório!');
